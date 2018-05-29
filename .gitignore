@@ -1,0 +1,8 @@
+# Ignore data and output folders
+data/
+output/
+
+# Ignore Rstudio project files
+.Rhistory
+.Rproj.user/
+
