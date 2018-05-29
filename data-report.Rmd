@@ -1,0 +1,233 @@
+---
+title: "Revisión de datos Epidemiologia de fiebres agudas no determinadas en Coatepeque y Génova, Quetzaltenango, Guatemala"
+author: "Astrid Arriaza"
+date: "`r Sys.Date()`"
+output: pdf_document
+toc: yes
+---
+
+```{r setup, include=FALSE}
+# Load used packages
+library(package = "tidyverse")
+
+# Configure knitting
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+
+
+# Introducción
+
+Este reporte detalla el procedimiento de validación de datos del proyecto "Epidemiologia de fiebres agudas no determinadas en Coatepeque y Génova, Quetzaltenango, Guatemala". Este reporte contiene los hallazgos de los datos correspondientes a la línea basal de hogares y sus miembros. 
+
+
+
+```{r cargar-datos}
+# Read data
+hh_base <- read_csv(file = "output/clean-tables/hh_base.csv")
+memb_base <- read_csv(file = "output/clean-tables/memb_base.csv")
+hh_enrollment <- read_csv(file = "data/01_enrollment_visits.csv")
+```
+
+
+
+## Procedimiento
+
+Durante la validación de los datos se revisaron los siguientes aspectos:
+
+1.	Se verificó el número de consentimientos informados por hogar.
+2.	Se verificó que los registros correspondieran a un único identificador. 
+3.	Se revisó datos faltantes en cada una de las variables. 
+4.	Se validó la consistencia de los saltos de las preguntas. 
+
+
+## Validación de datos línea basal de hogares
+
+### Consentimiento informado de los hogares
+
+
+
+
+```{r informed consent}
+# Number of households with consent form at the enrollment time
+consenthh <- hh_enrollment %>%
+  group_by(dioConsentimiento) %>%
+ filter(dioConsentimiento=="si")%>%
+  summarize(n=n())
+#Number of households with baseline survey (enrolled)
+households <- hh_base %>%
+  distinct(idcasa) %>%
+  summarize(n=n()) 
+```
+
+
+Para revisar el número de consentimientos informados por hogares enrolados en el estudio se verificó el número de hogares con identificador único que fueron entrevistados en la línea  basal y el número de consentimientos informados recolectados durante la etapa de registro de hogares. Se encontró una discrepancia entre el número de consentimientos informados (n=`r consenthh`) y el número de hogares entrevistados durante la línea basal (n=`r households`).No fue posible identificar el ID de los hogares sin consentimiento informado ya que los datos de la etapa de registro  hogares no tienen identificador. 
+
+
+
+
+### Revisión de datos faltantes
+
+Se revisaron todas las variables para identificar valores faltantes de la línea basal de hogares. La siguiente tabla resume las variables y el número de hogares con datos faltantes. 
+
+```{r hh-missing}
+# Check missing values for all variables ---
+hh_base %>%
+  gather(variable, value, -idcasa, factor_key = TRUE) %>%
+  group_by(variable) %>%
+  summarize(
+    missing = sum(is.na(value))
+  ) %>%
+  filter(missing != 0) %>%
+  knitr::kable()
+```
+
+
+```{r missing}
+
+```
+
+
+La mayoría de datos faltantes corresponden a variables que tienen un filtro previo. Para las siguientes variables, es correcto que se encuentren hogares con valores faltantes, ya que existe una pregunta previa, en donde la respuesta seleccionada indica que no aplica la pregunta: 
+
+*	“pabellon_insecticida”
+*	“fecfumiga”
+*	“larvi_cuando”
+*	“larvi_unidad”
+*	“deposito_agua_tapadera”
+*	“frecbasura”
+*	“leche_hierven”
+*	“latafreq”
+*	“animalotr”
+*	“ratones_cuando”
+*	“ratones_unidad”
+*	“pulgas_cuando”
+*	“pulgas_unidad”
+*	“garrapatas_cuando”
+*	“garrapatas_unidad”
+*	“garrapatas_unidad”
+
+Sin embargo, existen hogares que tienen observaciones faltantes. A continuación se detallan las variables y los hogares que tienen datos faltantes. 
+
+
+
+
+#### Datos faltantes: Ubicación geográfica
+
+```{r}
+id_miss_gps <- hh_base %>% 
+  filter(is.na(gpslatitude) | is.na(gpslongitude)) %>%
+  pull(idcasa)
+
+```
+
+
+En los datos del registro de línea base de hogares existe un hogar que no tiene información sobre la ubicación geográfica. El hogar identificador del hogar es `r id_miss_gps`. Adicionalmente, se identificó que el hogar F-01-29-088-3, tiene coordenadas geográficas fuera del rango  en comparación con el resto de hogares.  A continuación se muestra el mapa de la ubicación geográfica de los hogares. 
+
+
+
+```{r}
+hh_base %>%
+  select(idcasa, matches("gps")) %>%
+  leaflet::leaflet() %>%
+  leaflet::addTiles() %>%
+  leaflet::addCircleMarkers(
+    lng = ~gpslongitude,
+    lat = ~gpslatitude,
+    popup = ~idcasa,
+    radius = 1
+  ) %>%
+  leaflet::addLabelOnlyMarkers(
+    data = filter(hh_base, idcasa == "F-01-29-088-3"),
+    lng = ~gpslongitude,
+    lat = ~gpslatitude,
+    label = ~idcasa,
+    labelOptions = leaflet::labelOptions(noHide = TRUE)
+  )
+
+```
+
+
+#### Datos faltantes: Características del hogar
+
+
+```{r}
+
+#check households witn missing perosnasviviencuartos
+vivencuartos <- hh_base %>% 
+  filter(is.na(personasvivencuartos)) %>%
+  pull(idcasa)
+
+
+#check household with missing cononacomo
+cocinacomo <- hh_base %>% 
+  filter(is.na(cocinacomo)) %>%
+  pull(idcasa)
+```
+
+
+Durante la validación de los datos se encontró que hay hogares en los cuales falta información de dos características del hogar. Los hogares `r vivencuartos` les hace falta información de la variable “peronasvivencuartos”  y para los hogares `r cocinacomo` les hace falta información de la variable “cocinacomo”.
+
+
+
+
+
+## Validación de datos línea basal de miembros de la familia
+
+
+### Revisión del ID del hogar y miembros de la familia
+
+Con el objetivo de poder unir la información de los individuos enrolados a lo largo del estudio se revisó que todos los individuos tuvieran asignado un identificador de hogar. Posteriormente se revisó que la cantidad de miembros de la familia registrados en la línea basal de personas estuvieran contemplados en la línea basal de hogares. Se encontró que en cuatro hogares el número de personas registradas en la línea basal no coincide. Existiendo más individuos listados en los datos de los miembros de la familia que los listados por el jefe de hogar. Los hogares se detallan a continuación. 
+
+
+```{r}
+hh_base %>%
+  #select house ID and members from household baseline
+  select(
+    idcasa = idcasa, 
+    hhpersonas = personas
+  )%>%
+  #left_join to merge variables from the two datasets
+  left_join(
+    memb_base%>%
+      select(idcasa, personas)
+  )%>% 
+  #314 households marged
+  group_by(idcasa, personas)%>%
+  summarize(n = n())%>%
+  filter(personas != n) %>%
+  knitr::kable()
+```
+
+
+
+### Revisión de datos faltantes
+
+Se revisaron todas las variables para identificar valores faltantes de la línea basal de personas. La siguiente tabla resume las variables y el número de personas con datos faltantes. 
+
+```{r check_var}
+# Check missing values for all variables ---
+memb_base %>%
+  gather(variable, value, -idcasa, factor_key = TRUE) %>%
+  group_by(variable) %>%
+  summarize(
+    missing = sum(is.na(value))
+  ) %>%
+  filter(missing != 0) %>%
+  knitr::kable()
+```
+
+
+Los valores faltantes todas las variables detalladas en el cuadro anterior, corresponden a variables que tienen un filtro previo. Por lo que se revisó que es correcto que sean valores faltantes, ya que existe una pregunta previa, en donde la respuesta seleccionada indica que no aplica la pregunta.
+
+
+Por último se validó la variable edad de los miembros del hogar. Se revisó el cálculo de la edad con la fecha de nacimiento y la fecha de la entrevista. Posteriormente se cruzaron los valores del cálculo de la edad y la edad reportada y se encontraron discrepancias en edad de 14 individuos. Los individuos con discrepancia en la edad se encuentran detallados a continuación. 
+
+```{r check_age}
+memb_base %>% 
+  filter(calculoedad != edad)%>%
+  group_by(idcasa, identificador)%>%
+  summarize(edad, calculoedad)%>%
+  knitr::kable()
+```
+
