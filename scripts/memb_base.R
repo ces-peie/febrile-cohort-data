@@ -219,8 +219,6 @@ memb_base %>%
 # check ninio_asistenino----
 #----------------------------------*
 
-#should not be a filter or category for child that should be before this question-----
-
 memb_base %>% 
   #filter for children from 5 to 14 years old
   filter(edad %in% c(5, 14))%>%
