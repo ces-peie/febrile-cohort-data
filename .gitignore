@@ -4,5 +4,3 @@ output/
 
 # Ignore Rstudio project files
 .Rhistory
-.Rproj.user/
-
